@@ -1,3 +1,4 @@
+import { intakeSchedule } from "../intakeSchedule";
 import { useAdmissionOptions } from "@/hooks/useAdmissionOptions";
 import React, { useState, useRef, useMemo, useEffect } from "react";
 import {
@@ -95,7 +96,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClos
   // 2. Education Information
   const [courseType, setCourseType] = useState<(typeof COURSE_TYPES)[number]>("Post Graduation");
   const [courseTitle, setCourseTitle] = useState<string>("");
-  const { COURSE_CATALOG, PAYMENT_SCHEMES, AGENTS_LIST, REPRESENTATIVES_LIST, INTAKE_NAMES, paymentSchemeOptions, schemes, selectedCourseType, loading: optionsLoading, error: optionsError } = useAdmissionOptions(courseTitle);
+  const { COURSE_CATALOG, PAYMENT_SCHEMES, AGENTS_LIST, REPRESENTATIVES_LIST, INTAKE_NAMES, intakeRows, paymentSchemeOptions, schemes, selectedCourseType, loading: optionsLoading, error: optionsError } = useAdmissionOptions(courseTitle);
   const [coursePaymentScheme, setCoursePaymentScheme] = useState<string>(PAYMENT_SCHEMES[0] || "");
 
   // 3. Agents and Representatives
@@ -111,6 +112,15 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClos
   const [completionDate, setCompletionDate] = useState<string>("");
   const [enrollmentDate, setEnrollmentDate] = useState<string>("");
 
+  useEffect(() => {
+    const selected = intakeRows.find(row => row.name === intakeName);
+    const schedule = intakeSchedule(selected);
+    setIntakeMonth(schedule.intakeMonth);
+    setIntakeDate(schedule.intakeDate);
+    setFinalExamResultDate(schedule.finalExamResultDate);
+    setConfermentDate(schedule.confermentDate);
+    setCompletionDate(schedule.completionDate);
+  }, [intakeName, intakeRows]);
   // 5. Payment Information
   const [discount, setDiscount] = useState<string>("");
   const [totalCourseAmount, setTotalCourseAmount] = useState<string>("");
@@ -471,8 +481,6 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClos
                   options={[
                     { label: "Mr", value: "Mr" },
                     { label: "MS", value: "MS" },
-                    { label: "Mrs", value: "Mrs" },
-                    { label: "Dr", value: "Dr" },
                   ]}
                   onChange={(val) => setSalutation(val as "Mr" | "MS")}
                   buttonClassName="bg-white border-brand-border py-2 px-3 text-xs rounded-xl"

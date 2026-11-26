@@ -1,3 +1,4 @@
+import {courseRequirements} from "./courseFields";
 import { saveProfile } from "./profile";
 import { dataUrlToBlob } from "./api/dataUrl";
 import { apiClient as api } from "./api/apiClient";
@@ -46,6 +47,7 @@ async function listRequest(path: string, ...keys: string[]) {
 export const mapAgent = (r: Row): AgentItem => keep("agents", r, {
   id: idOf(r), agentCode: r.agentCode || r.code || "", name: r.name || "", email: r.email || "", phone: r.phone || "",
   type: r.partnerType || "", representative: (r.representatives || []).map(textOf).filter(Boolean).join(", "),
+  representativeId: idOf(Array.isArray(r.representatives) ? r.representatives[0] : r.representatives),
   country: r.address?.country || "", status: r.partnerStatus || active(r), avatarUrl: assetUrl(r.avatarUrl || r.profilePic || r.logo_name, "/uploads"),
   joinedDate: date(r.createdAt), agencyName: r.agencyName || r.applicantInformation?.nameOfBusiness || "", notes: r.notes || "",
 });
@@ -65,7 +67,7 @@ export const mapCourse = (r: Row): CollegeCourse => keep("courses", r, {
   id: idOf(r), code: r.courseCode || "", title: r.course || "", level: r.courseType || "", courseType: r.courseType,
   category: textOf(r.categoryId), department: r.department || "", duration: r.duration || "", seats: r.seats || 0, enrolled: r.students?.length || 0,
   fee: String(r.fees ?? ""), applicationFee: String(r.applicationFees ?? ""), status: active(r) as "Active", intakes: r.intakes || [],
-  requirementDescription: r.requirementDescription || "", requirements: r.requirements || [],
+  requirementDescription: courseRequirements(r.requirementDescription, r.requirements || []).map(row => row.description).join("\n"), requirements: courseRequirements(r.requirementDescription, r.requirements || []),
   feeBreakdownSchemes: (r.feesTypes || []).map((f: Row) => ({ ...f, id: idOf(f), assessmentFee: f.assessmentFee || 0, gstRate: f.gst && f.totalFee > f.gst ? f.gst / (f.totalFee - f.gst) : 0 })),
 });
 export const mapStudent = (r: Row): CollegeStudent => keep("students", r, {
@@ -123,9 +125,11 @@ export const agents: Repository<AgentItem> = {
   save: async (v, creating) => {
     const raw = original("agents", v.id);
     const reps = await representatives.list();
-    const rep = reps.find(r => r.id === v.representative || r.name === v.representative);
-    if (v.representative && !rep) throw new Error("Select an existing representative.");
-    const body = { partnerType: v.type, agencyName: v.agencyName, notes: v.notes, avatarUrl: v.avatarUrl, partnerStatus: v.status, fullName: v.name, name: v.name, email: v.email, phone: v.phone, country: v.country,
+    const selection = v.representativeId || v.representative;
+    const legacyMatches = v.representativeId ? [] : reps.filter(r => r.name === selection);
+    const rep = reps.find(r => r.id === selection) || (legacyMatches.length === 1 ? legacyMatches[0] : undefined);
+    if (selection && !rep) throw new Error("Select an existing representative.");
+    const body = { partnerType: v.type || undefined, agencyName: v.agencyName, notes: v.notes, avatarUrl: v.avatarUrl, partnerStatus: v.status, fullName: v.name, name: v.name, email: v.email, phone: v.phone, country: v.country,
       state: raw.address?.state || "", city: raw.address?.city || "", representative: rep?.id || "none", colleges: await collegeId() };
     if (creating) await api.post("/api/admin/add-agents", body);
     else await api.put(`/api/admin/edit-agent/${v.id}`, body);
@@ -165,7 +169,7 @@ export const institutes: Repository<InstituteItem> = {
 export const courses: Repository<CollegeCourse> = {
   key: "courses", list: async () => (await listRequest("/api/admin/all-courses")).filter(r => !r.isDeleted).map(mapCourse),
   save: async (v, creating) => {
-    const body = { course: v.title, courseCode: v.code, courseType: (v.courseType || v.level) === "Postgraduate" ? "Post Graduation" : v.courseType || v.level, duration: creating ? String(Number(v.duration.match(/[\d.]+/)?.[0] || 0) * (/year/i.test(v.duration) ? 12 : 1)) : v.duration,
+    const body = { course: v.title, courseCode: v.code, courseType: (v.courseType || v.level) === "Postgraduate" ? "Post Graduation" : v.courseType || v.level, duration: v.duration.trim(),
       applicationFees: amountOf(v.applicationFee), requirementDescription: v.requirementDescription || "", college: await collegeId() };
     if (creating) await api.post("/api/admin/add-course", body);
     else await api.put(`/api/admin/edit-courses/${v.id}`, body);

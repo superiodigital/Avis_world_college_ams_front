@@ -44,6 +44,21 @@ async function load(source, realAuth = false) {
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
 const id = "507f1f77bcf86cd799439011";
 
+test("selected intake fills all stored milestones and clears missing dates", async () => {
+  const { intakeSchedule } = await load('export { intakeSchedule } from "./src/features/college/intakeSchedule";');
+  assert.deepEqual(intakeSchedule({ name: "DBT2701", intakeMonth: "January",
+    intakeDate: "2027-01-12T00:00:00.000Z", finalExamResultDate: "15/02/2028",
+    confermentDate: "20 Mar 2028", completionDate: "2028-01-12" }), {
+    intakeMonth: "January", intakeDate: "2027-01-12", finalExamResultDate: "2028-02-15",
+    confermentDate: "2028-03-20", completionDate: "2028-01-12",
+  });
+  assert.deepEqual(intakeSchedule({ name: "Next", intakeMonth: "March" }), {
+    intakeMonth: "March", intakeDate: "", finalExamResultDate: "", confermentDate: "", completionDate: "",
+  });
+  assert.equal(intakeSchedule({ commenceDate: "2027-03-01" }).intakeDate, "2027-03-01");
+  assert.equal(intakeSchedule({ intakeDate: "invalid" }).intakeDate, "");
+});
+
 test("full history requests a bounded transaction page independently of payment records", async () => {
   const { getTransactionPage, getTransactionMethods } = await load('export { getTransactionPage, getTransactionMethods } from "./src/services/payments";');
   let calls = 0;
@@ -465,4 +480,55 @@ test("header uses bounded search and count endpoints instead of downloading rost
  assert.equal(calls.length, 2); assert.equal(calls[0].pathname, "/api/admin/dashboard/header-search");
  assert.equal(calls[0].searchParams.get("limit"), "15"); assert.equal(calls[0].searchParams.get("search"), "Alice");
  assert.equal(calls[1].pathname, "/api/admin/dashboard/header-summary");
+});
+
+
+test("agent assignment uses the selected representative ID even when names repeat", async () => {
+ const reps = [{_id: "507f1f77bcf86cd799439011", name: "Same Name", email: "one@example.invalid"}, {_id: "507f1f77bcf86cd799439012", name: "Same Name", email: "two@example.invalid"}];
+ let saved;
+ globalThis.fetch = async (url, options) => {
+  const path = new URL(url).pathname;
+  if (path.endsWith("representatives-list")) return json({representatives: reps});
+  if (path.endsWith("/college")) return json({_id: "507f1f77bcf86cd799439013", name: "College"});
+  if (path.endsWith("add-agents")) {saved = JSON.parse(options.body); return json({_id: "agent-created"});}
+  if (path.endsWith("agents-list")) return json([{_id: "agent-created", name: "Agent", representatives: [reps[1]]}]);
+  throw Error("Unexpected path: " + path);
+ };
+ const {agents} = await load('export {agents} from "./src/services/ams.ts";');
+ await agents.save({id: "new", name: "Agent", email: "agent@example.invalid", phone: "123", type: "", representative: "Same Name", representativeId: reps[1]._id, country: "India", status: "Active"}, true);
+ assert.equal(saved.representative, reps[1]._id); assert.equal(saved.partnerType, undefined);
+ const [agent] = await agents.list(); assert.equal(agent.representativeId, reps[1]._id); assert.equal(agent.representative, "Same Name");
+});
+test("a missing representative selection cannot silently become a different partner", async () => {
+ globalThis.fetch = async url => {
+  if (new URL(url).pathname.endsWith("representatives-list")) return json({representatives: [{_id: "507f1f77bcf86cd799439011", name: "Same Name"}]});
+  throw Error("No mutation expected");
+ };
+ const {agents} = await load('export {agents} from "./src/services/ams.ts";');
+ await assert.rejects(agents.save({id: "new", name: "Agent", representative: "Same Name", representativeId: "507f1f77bcf86cd799439012"}, true), /Select an existing representative/);
+});
+
+
+test("course creation preserves full duration and displays saved requirement text", async () => {
+ const description = "Age: Minimum 21 years.\nAcademic: Bachelor degree.\nEnglish: Pass entrance test.";
+ const duration = "6 months institutional training + 6 months industrial attachment";
+ let payload;
+ globalThis.fetch = async (url, options) => {
+  const path = new URL(url).pathname;
+  if (path.endsWith("/college")) return json({_id: id, name: "College"});
+  if (path.endsWith("add-course")) {payload = JSON.parse(options.body); return json({_id: id});}
+  if (path.endsWith("all-courses")) return json([{_id: id, course: "Course", courseCode: "TEST", duration, applicationFees: 0, requirementDescription: description, requirements: []}]);
+  throw Error("Unexpected request");
+ };
+ const {courses} = await load('export {courses} from "./src/services/ams.ts";');
+ await courses.save({id: "new", title: "Course", code: "TEST", courseType: "Diploma", duration, applicationFee: "0", requirementDescription: description}, true);
+ assert.equal(payload.duration, duration); assert.equal(payload.applicationFees, 0); assert.equal(payload.requirementDescription, description);
+ const [course] = await courses.list(); assert.equal(course.requirements.length, 3); assert.equal(course.requirements[1].description, "Academic: Bachelor degree.");
+});
+test("course requirements retain legacy rows and allow clearing all criteria", async () => {
+ const {courseRequirements} = await load('export {courseRequirements} from "./src/services/courseFields.ts";');
+ const legacy = [{id: "legacy", description: "Existing criterion"}];
+ assert.deepEqual(courseRequirements("", legacy), legacy); assert.deepEqual(courseRequirements(""), []);
+ assert.equal(courseRequirements("Age 21", legacy).length, 2);
+ assert.equal(courseRequirements(" Age 21 \r\n\r\n English test ")[1].description, "English test");
 });

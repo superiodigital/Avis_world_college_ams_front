@@ -1,4 +1,5 @@
 export type AgentType =
+  | ""
   | "Exclusive Partner"
   | "Direct Recruiter"
   | "Institutional Agent"
@@ -15,7 +16,8 @@ export interface AgentItem {
   email: string; // Email
   phone: string; // Phone
   type: AgentType; // Type
-  representative: string; // Representative
+  representative: string; // Display name
+  representativeId?: string; // Stable assignment identifier
   country: string; // Country
   status: AgentStatus;
   avatarUrl: string;

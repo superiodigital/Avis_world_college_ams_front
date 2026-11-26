@@ -45,9 +45,9 @@ export const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSav
   // 3. Course Code
   const [courseCode, setCourseCode] = useState("");
   // 4. Duration
-  const [duration, setDuration] = useState("4 Years (Full-time)");
+  const [duration, setDuration] = useState("");
   // 5. Application Fees
-  const [applicationFee, setApplicationFee] = useState("$150");
+  const [applicationFee, setApplicationFee] = useState("");
   // 6. Requirement Description
   const [requirementDescription, setRequirementDescription] = useState("");
 
@@ -61,15 +61,15 @@ export const CourseModal: React.FC<CourseModalProps> = ({ isOpen, onClose, onSav
         setCourseType(course.courseType || course.level || "Post Graduation");
         setCourseTitle(course.title || "");
         setCourseCode(course.code || "");
-        setDuration(course.duration || "4 Years (Full-time)");
-        setApplicationFee(course.applicationFee || "$150");
+        setDuration(course.duration || "");
+        setApplicationFee(course.applicationFee ?? "");
         setRequirementDescription(course.requirementDescription || "");
       } else {
         setCourseType("Post Graduation");
         setCourseTitle("");
         setCourseCode("");
-        setDuration("4 Years (Full-time)");
-        setApplicationFee("$150");
+        setDuration("");
+        setApplicationFee("");
         setRequirementDescription("");
       }
       setErrors({});

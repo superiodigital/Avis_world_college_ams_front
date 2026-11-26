@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FileText } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -7,12 +7,16 @@ import { toast } from "@/components/common/ToastMessage";
 
 export interface AddRequirementModalProps {
   isOpen: boolean;
+  initialValue?: string;
+  mode?: "add" | "edit";
   onClose: () => void;
   onAddRequirement: (description: string) => void | boolean | Promise<void | boolean>;
 }
 
-export const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ isOpen, onClose, onAddRequirement }) => {
-  const [requirementText, setRequirementText] = useState("");
+export const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ isOpen, onClose, onAddRequirement, initialValue = "", mode = "add" }) => {
+  const [requirementText, setRequirementText] = useState(initialValue);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (isOpen) setRequirementText(initialValue); }, [isOpen, initialValue]);
 
   const handleClose = () => {
     setRequirementText("");
@@ -22,22 +26,26 @@ export const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ isOpen
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = requirementText.trim();
-    if (!trimmed) {
+    if (!trimmed && mode !== "edit") {
       toast.error("Please enter requirement details.");
       return;
     }
 
-    if (await onAddRequirement(sanitizeInput(trimmed)) === false) return;
-    setRequirementText("");
-    onClose();
+    if (saving) return;
+    setSaving(true);
+    try {
+      if (await onAddRequirement(sanitizeInput(trimmed)) === false) return;
+      setRequirementText("");
+      onClose();
+    } finally { setSaving(false); }
   };
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Add Course Requirement"
-      subtitle="Add a new entry requirement criterion for this course"
+      title={mode === "edit" ? "Edit Course Requirements" : "Add Course Requirement"}
+      subtitle={mode === "edit" ? "Update the saved criteria, one requirement per line" : "Add a new entry requirement criterion for this course"}
       headerIcon={<FileText className="h-5 w-5 text-burgundy-primary" />}
       maxWidth="md"
     >
@@ -74,6 +82,7 @@ export const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ isOpen
           </Button>
           <Button
             type="submit"
+            disabled={saving}
             variant="burgundy"
             size="sm"
             className="rounded-xl text-xs font-semibold"

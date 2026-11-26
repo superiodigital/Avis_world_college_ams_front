@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { AgentItem, AgentType } from "../types";
+import { AgentItem } from "../types";
 import { Edit3, Mail, Phone, Upload, Building2, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dropdown, DropdownOption } from "@/components/ui/Dropdown";
@@ -21,11 +21,10 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
   agent,
   onSave,
 }) => {
-  const { data: reps } = useApiCollection(representatives);
+  const { data: reps, loading: repsLoading, error: repsError, reload: reloadReps } = useApiCollection(representatives);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [type, setType] = useState<AgentType>("Direct Recruiter");
   const [representative, setRepresentative] = useState("");
   const [country, setCountry] = useState("India");
   const [status, setStatus] = useState<"Active" | "Inactive" | "Suspended">("Active");
@@ -40,10 +39,10 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
       return [];
     }
     return reps.map((r) => ({
-      label: `${r.name} (${r.country})`,
-      value: r.name,
+      label: `${r.name}${r.country ? ` (${r.country})` : ""}${reps.filter(rep => rep.name === r.name).length > 1 ? ` • ${r.email || r.id}` : ""}`,
+      value: r.id,
     }));
-  }, []);
+  }, [reps]);
 
   const countryOptions: DropdownOption[] = useMemo(() => {
     return (countriesData as { name: string; code: string }[]).map((c) => ({
@@ -52,28 +51,25 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
     }));
   }, []);
 
-  const typeOptions: DropdownOption[] = [
-    { label: "Exclusive Partner", value: "Exclusive Partner" },
-    { label: "Direct Recruiter", value: "Direct Recruiter" },
-    { label: "Institutional Agent", value: "Institutional Agent" },
-    { label: "Authorized Consultant", value: "Authorized Consultant" },
-    { label: "Regional Partner", value: "Regional Partner" },
-    { label: "Sub-Agent", value: "Sub-Agent" },
-  ];
-
   useEffect(() => {
     if (agent) {
       setName(agent.name);
       setEmail(agent.email);
       setPhone(agent.phone);
-      setType(agent.type);
-      setRepresentative(agent.representative);
+      setRepresentative(agent.representativeId || "");
       setCountry(agent.country);
       setStatus(agent.status);
       setAvatarUrl(agent.avatarUrl || "/avis-emblem.png");
       setError("");
     }
   }, [agent]);
+
+  useEffect(() => {
+    if (agent && !representative && !agent.representativeId && reps.length) {
+      const matches = reps.filter(rep => rep.name === agent.representative);
+      if (matches.length === 1) setRepresentative(matches[0].id);
+    }
+  }, [agent, representative, reps]);
 
   if (!agent) return null;
 
@@ -116,6 +112,10 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
       setError("Please provide a Phone number.");
       return;
     }
+    if (repsLoading || repsError || !reps.some(rep => rep.id === representative)) {
+      setError("Please select an available Representative.");
+      return;
+    }
     if (!country.trim()) {
       setError("Please select a Country.");
       return;
@@ -126,8 +126,9 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
       name: name.trim(),
       email: email.trim().toLowerCase(),
       phone: phone.trim(),
-      type,
-      representative,
+      type: agent.type,
+      representative: reps.find(rep => rep.id === representative)?.name || "",
+      representativeId: representative,
       country: country.trim(),
       status,
       avatarUrl,
@@ -278,25 +279,8 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
             </div>
           </div>
 
-          {/* Type */}
-          <div>
-            <label className="mb-1 block text-xs font-bold text-text-secondary">
-              Type <span className="text-brand-red">*</span>
-            </label>
-            <div className="w-full">
-              <Dropdown
-                value={type}
-                options={typeOptions}
-                onChange={(val) => setType(val as AgentType)}
-                className="w-full"
-                buttonClassName="w-full justify-between h-[36px] rounded-xl text-xs bg-white border border-brand-border"
-                menuClassName="max-h-56 overflow-y-auto w-full z-50"
-              />
-            </div>
-          </div>
-
           {/* Representative */}
-          <div>
+          <div className="sm:col-span-2">
             <label className="mb-1 block text-xs font-bold text-text-secondary">
               Representative <span className="text-brand-red">*</span>
             </label>
@@ -304,12 +288,15 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
               <Dropdown
                 value={representative}
                 options={representativeOptions}
+                placeholder={repsLoading ? "Loading representatives…" : "Select representative"}
                 onChange={(val) => setRepresentative(val)}
                 className="w-full"
                 buttonClassName="w-full justify-between h-[36px] rounded-xl text-xs bg-white border border-brand-border"
                 menuClassName="max-h-56 overflow-y-auto w-full z-50"
               />
             </div>
+            {repsError && <p role="alert" className="mt-1 text-xs text-red-700">Unable to load representatives. <button type="button" onClick={() => void reloadReps()} className="underline">Retry</button></p>}
+            {!repsLoading && !repsError && reps.length === 0 && <p className="mt-1 text-xs text-text-muted">No representatives found. Create a representative first.</p>}
           </div>
 
           {/* Country */}
@@ -375,6 +362,7 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
           </Button>
           <Button
             type="submit"
+            disabled={repsLoading || Boolean(repsError) || !reps.some(rep => rep.id === representative)}
             variant="burgundy"
             size="sm"
             className="rounded-xl px-5 text-xs font-bold shadow-md shadow-burgundy/15"

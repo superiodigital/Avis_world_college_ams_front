@@ -1,3 +1,4 @@
+import {courseRequirements} from "@/services/courseFields";
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
@@ -15,6 +16,7 @@ import {
   Clock,
   Sparkles,
   Info,
+  Edit3,
 } from "lucide-react";
 import BreadcrumbBanner from "@/components/common/BreadcrumbBanner";
 import { Button } from "@/components/ui/Button";
@@ -89,7 +91,7 @@ export const CourseDetailPage: React.FC = () => {
   const persistCourseData = async (updatedRequirements: CourseRequirement[], updatedSchemes: CourseFeeBreakdown[]) => {
     if (!currentCourse) return false;
     try {
-      if (JSON.stringify(updatedRequirements) !== JSON.stringify(currentCourse.requirements || [])) await apiClient.put(`/api/admin/edit-courses/${currentCourse.id}`, { requirements: updatedRequirements });
+      if (JSON.stringify(updatedRequirements) !== JSON.stringify(currentCourse.requirements || [])) await apiClient.put(`/api/admin/edit-courses/${currentCourse.id}`, { requirements: updatedRequirements, requirementDescription: updatedRequirements.map(row => row.description).join("\n") });
       const previous = currentCourse.feeBreakdownSchemes || [];
       for (const scheme of updatedSchemes) {
         const old = previous.find(s => s.id === scheme.id);
@@ -177,17 +179,11 @@ export const CourseDetailPage: React.FC = () => {
     toast.success(`Fee type "${targetName}" removed.`);
   };
 
-  // Add requirement
-  const handleAddRequirement = async (description: string) => {
-    const newReq: CourseRequirement = {
-      id: `req-${Date.now()}`,
-      description,
-    };
-
-    const updated = [...requirements, newReq];
+  const handleEditRequirements = async (description: string) => {
+    const updated = courseRequirements(description);
     if (!await persistCourseData(updated, feeSchemes)) return false;
     setRequirements(updated);
-    toast.success("New requirement added.");
+    toast.success("Course requirements updated.");
   };
 
   const containerVariants = shouldReduceMotion ? { hidden: { opacity: 1 }, visible: { opacity: 1 } } : dashboardContainerVariants;
@@ -368,8 +364,8 @@ export const CourseDetailPage: React.FC = () => {
                     onClick={() => setIsAddRequirementModalOpen(true)}
                     className="gap-1.5 rounded-xl border-burgundy-primary/30 text-xs font-semibold text-burgundy-primary hover:border-burgundy-primary hover:bg-brand-light-red/40"
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Add</span>
+                    <Edit3 className="h-3.5 w-3.5" />
+                    <span>Edit</span>
                   </Button>
                 </div>
               </div>
@@ -702,7 +698,9 @@ export const CourseDetailPage: React.FC = () => {
         <AddRequirementModal
           isOpen={isAddRequirementModalOpen}
           onClose={() => setIsAddRequirementModalOpen(false)}
-          onAddRequirement={handleAddRequirement}
+          mode="edit"
+          initialValue={requirements.map(row => row.description).join("\n")}
+          onAddRequirement={handleEditRequirements}
         />
       )}
     </motion.div>

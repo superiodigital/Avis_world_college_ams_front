@@ -29,8 +29,8 @@ Deploy the backend changes together with this frontend. New authenticated adapte
 
 ## Verification
 
-Frontend: `npm test` (39 tests, including fresh-database college setup and bounded payment/student/transaction-page requests) and `npm run build`.
-Backend: `npm test` (29 tests, including student/payment/transaction pagination, scoped ledger reads, grouped report responses and legacy partner identifiers). AMS route registration was also checked without opening a database connection.
+Frontend: `npm test` (43 tests, including fresh-database college setup and bounded payment/student/transaction-page requests) and `npm run build`.
+Backend: `npm test` (31 tests, including student/payment/transaction pagination, scoped ledger reads, grouped report responses and legacy partner identifiers). AMS route registration was also checked without opening a database connection.
 
 Tests cover authentication/session behavior, paginated student reads, real identifier resolution, installment validation, receipt downloads, duplicate settlement protection, administrator authorization, fee/GST persistence and overview calculations. They use controlled fixtures.
 
@@ -112,3 +112,11 @@ Header search review: SearchModal no longer downloads full student/course/admin/
 Profile menu review: replaced roster downloads and the hardcoded 78 partner total with authenticated header-summary count queries. Total administrators and active administrators are separate counts; partner total is approved non-deleted agents plus non-deleted representatives. Loading/errors show unavailable counts and retry, rather than fake zero values. Removed an unreachable duplicate admin-roster modal; the existing Total Admins button still navigates to /admins. Legacy administrator records without an isDeleted flag remain visible in that directory, consistent with header/search counts. Search opening closes profile/notification popovers. College page shortcuts use validated tab query parameters, including when College is already mounted; recent shortcuts retain their destination.
 
 Header verification: 39 frontend and 29 backend tests passed, and the production build passed. Tests cover bounded query parameters, escaped search literals, limits/ranking, safe projections/DTOs and real count semantics. Authenticated browser checks confirmed Ctrl+K, an existing student match, Enter navigation to its database-ID profile, the Courses page shortcut, one total/active administrator, zero partners and navigation to the matching admin directory. No records were created or edited. Larger-data latency and ranking quality still require representative staging data; substring search with full counts can scan matching records. Existing unrelated profile/administrator placeholder labels were observed and remain outside this header-focused pass.
+
+Course form/requirements correction — 25 November 2026: Add Course duration and application-fee inputs now initialize/reset empty; edit retains saved values. Full entered duration text is sent and stored intact. Backend numeric-only duration inputs from the old AMS still normalize to months, while descriptive values are preserved. Previously truncated database values cannot be reconstructed and need re-entry through Edit Course.
+
+Requirements entered in Add/Edit Course now synchronize requirementDescription and requirements on create, restore and partial update. Existing text-only records populate the criteria table without a migration; legacy criteria rows are retained alongside description lines. The criteria action is Edit, opening a prefilled multiline editor that replaces all saved criteria (and supports clearing them). Criteria saves update both representations without overwriting fee schemes. Checks cover multiline/legacy data, clearing, full duration preservation and fee-scheme isolation; 43 frontend and 31 backend tests pass. No live course records were modified during this verification.
+
+### Student intake autofill (25 November 2026)
+Selecting an intake in Add Student now applies its saved month, intake date, completion date, final exam result date, and conferment date. Switching to an intake with missing milestones clears the previous values. Enrollment date remains student-specific and manual because intake records have no enrollment date. Date inputs support ISO, legacy day/month/year, and display dates. Frontend tests: 44 passing.
+

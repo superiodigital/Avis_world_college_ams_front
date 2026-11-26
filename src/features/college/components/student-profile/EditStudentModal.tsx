@@ -21,8 +21,6 @@ interface CountryItem {
 const SALUTATION_OPTIONS: FilterSelectOption[] = [
   { label: "Mr", value: "Mr" },
   { label: "MS", value: "MS" },
-  { label: "Mrs", value: "Mrs" },
-  { label: "Dr", value: "Dr" },
 ];
 
 const GENDER_OPTIONS: FilterSelectOption[] = [

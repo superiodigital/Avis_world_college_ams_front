@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { AgentItem, AgentType } from "../types";
+import { AgentItem } from "../types";
 import { UserPlus, Mail, Phone, Upload, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dropdown, DropdownOption } from "@/components/ui/Dropdown";
@@ -21,11 +21,10 @@ export const AddAgentModal: React.FC<AddAgentModalProps> = ({
   onAdd,
   nextAgentCode = "AWC-AG-013",
 }) => {
-  const { data: reps } = useApiCollection(representatives);
+  const { data: reps, loading: repsLoading, error: repsError, reload: reloadReps } = useApiCollection(representatives);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [type, setType] = useState<AgentType>("Direct Recruiter");
   const [representative, setRepresentative] = useState("");
   const [country, setCountry] = useState("India");
   const [status, setStatus] = useState<"Active" | "Inactive">("Active");
@@ -34,17 +33,17 @@ export const AddAgentModal: React.FC<AddAgentModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Representative options from active representatives roster
+  // Representative options update when the saved roster finishes loading.
   const representativeOptions: DropdownOption[] = useMemo(() => {
 
     if (reps.length === 0) {
       return [];
     }
     return reps.map((r) => ({
-      label: `${r.name} (${r.country})`,
-      value: r.name,
+      label: `${r.name}${r.country ? ` (${r.country})` : ""}${reps.filter(rep => rep.name === r.name).length > 1 ? ` • ${r.email || r.id}` : ""}`,
+      value: r.id,
     }));
-  }, []);
+  }, [reps]);
 
   // Initialize representative if empty
   React.useEffect(() => {
@@ -60,16 +59,6 @@ export const AddAgentModal: React.FC<AddAgentModalProps> = ({
       value: c.name,
     }));
   }, []);
-
-  // Agent Type options
-  const typeOptions: DropdownOption[] = [
-    { label: "Exclusive Partner", value: "Exclusive Partner" },
-    { label: "Direct Recruiter", value: "Direct Recruiter" },
-    { label: "Institutional Agent", value: "Institutional Agent" },
-    { label: "Authorized Consultant", value: "Authorized Consultant" },
-    { label: "Regional Partner", value: "Regional Partner" },
-    { label: "Sub-Agent", value: "Sub-Agent" },
-  ];
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -100,7 +89,6 @@ export const AddAgentModal: React.FC<AddAgentModalProps> = ({
     setName("");
     setEmail("");
     setPhone("");
-    setType("Direct Recruiter");
     setRepresentative(representativeOptions[0]?.value || "");
     setCountry("India");
     setStatus("Active");
@@ -126,6 +114,10 @@ export const AddAgentModal: React.FC<AddAgentModalProps> = ({
       setError("Please assign a supervising Representative.");
       return;
     }
+    if (repsLoading || repsError || !reps.some(rep => rep.id === representative)) {
+      setError("Please select an available Representative.");
+      return;
+    }
     if (!country.trim()) {
       setError("Please select a Country.");
       return;
@@ -143,8 +135,9 @@ export const AddAgentModal: React.FC<AddAgentModalProps> = ({
       name: name.trim(),
       email: email.trim().toLowerCase(),
       phone: phone.trim(),
-      type,
-      representative,
+      type: "",
+      representative: reps.find(rep => rep.id === representative)?.name || "",
+      representativeId: representative,
       country: country.trim(),
       status,
       avatarUrl: avatarUrl || "/avis-emblem.png",
@@ -306,25 +299,8 @@ export const AddAgentModal: React.FC<AddAgentModalProps> = ({
             </div>
           </div>
 
-          {/* Type */}
-          <div>
-            <label className="mb-1 block text-xs font-bold text-text-secondary">
-              Type <span className="text-brand-red">*</span>
-            </label>
-            <div className="w-full">
-              <Dropdown
-                value={type}
-                options={typeOptions}
-                onChange={(val) => setType(val as AgentType)}
-                className="w-full"
-                buttonClassName="w-full justify-between h-[36px] rounded-xl text-xs bg-white border border-brand-border"
-                menuClassName="max-h-56 overflow-y-auto w-full z-50"
-              />
-            </div>
-          </div>
-
           {/* Representative */}
-          <div>
+          <div className="sm:col-span-2">
             <label className="mb-1 block text-xs font-bold text-text-secondary">
               Representative <span className="text-brand-red">*</span>
             </label>
@@ -332,6 +308,7 @@ export const AddAgentModal: React.FC<AddAgentModalProps> = ({
               <Dropdown
                 value={representative}
                 options={representativeOptions}
+                placeholder={repsLoading ? "Loading representatives…" : "Select representative"}
                 onChange={(val) => {
                   setRepresentative(val);
                   if (error) setError("");
@@ -341,6 +318,8 @@ export const AddAgentModal: React.FC<AddAgentModalProps> = ({
                 menuClassName="max-h-56 overflow-y-auto w-full z-50"
               />
             </div>
+            {repsError && <p role="alert" className="mt-1 text-xs text-red-700">Unable to load representatives. <button type="button" onClick={() => void reloadReps()} className="underline">Retry</button></p>}
+            {!repsLoading && !repsError && reps.length === 0 && <p className="mt-1 text-xs text-text-muted">No representatives found. Create a representative first.</p>}
           </div>
 
           {/* Country */}
@@ -409,6 +388,7 @@ export const AddAgentModal: React.FC<AddAgentModalProps> = ({
           </Button>
           <Button
             type="submit"
+            disabled={repsLoading || Boolean(repsError) || !reps.some(rep => rep.id === representative)}
             variant="burgundy"
             size="sm"
             className="rounded-xl px-5 text-xs font-bold shadow-md shadow-burgundy/15"
